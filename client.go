@@ -40,7 +40,7 @@ func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 
 type ClientConf struct {
 	OpHandlerMap map[uint32][]OpHandler
-	ErrFunc ErrHandler
+	OnDisconnect ErrHandler
 }
 
 type Client struct {
@@ -264,8 +264,8 @@ func (c *Client) tryReconnect(err error) {
 
 	c.conn.Close()
 	c.conn = nil
-	if !websocket.IsCloseError(err, websocket.CloseNormalClosure) && c.conf.ErrFunc != nil {
-		c.conf.ErrFunc(err)
+	if !websocket.IsCloseError(err, websocket.CloseNormalClosure) && c.conf.OnDisconnect != nil {
+		c.conf.OnDisconnect(err)
 	}
 	go c.reconnect()
 }

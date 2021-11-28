@@ -52,6 +52,9 @@ func main() {
 		OpHandlerMap: map[uint32][]dm.OpHandler{
 			dm.OP_SEND_MSG_REPLY: []dm.OpHandler{onMsg},
 		},
+		OnDisconnect: func(error) {
+			fmt.Println("Connection loss detected, reconnect...")
+		},
 	}
 	client, err := dm.Dial(room_id, &conf)
 	if err != nil {
