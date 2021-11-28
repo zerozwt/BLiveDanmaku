@@ -21,7 +21,7 @@ func waitSignal(done chan bool) {
 	close(done)
 }
 
-func onMsg(msg *dm.Message) bool {
+func onMsg(msg *dm.RawMessage) bool {
 	if len(log) == 0 {
 		fmt.Println(string(msg.Data))
 		return false

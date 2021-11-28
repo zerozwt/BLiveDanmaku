@@ -12,14 +12,14 @@ import (
 var ErrMsgIncomplete error = errors.New("Msg not complete")
 var ErrMsgUnknownProtocolVersion error = errors.New("Msg has an unknown version")
 
-type Message struct {
+type RawMessage struct {
 	Ver int
 	Op uint32
 	Seq uint32
 	Data []byte
 }
 
-func (msg *Message) Encode() []byte {
+func (msg *RawMessage) Encode() []byte {
 	total_len := uint32(len(msg.Data) + HEADER_LENGTH)
 	ret := make([]byte, total_len)
 
@@ -34,7 +34,7 @@ func (msg *Message) Encode() []byte {
 	return ret
 }
 
-func (msg *Message) Decode(buf []byte) ([]byte, error) {
+func (msg *RawMessage) Decode(buf []byte) ([]byte, error) {
 	if len(buf) < 4 {
 		return buf, ErrMsgIncomplete
 	}

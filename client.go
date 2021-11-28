@@ -17,7 +17,7 @@ import (
 
 var ErrNotConnected error = errors.New("Not connected")
 
-type OpHandler func(*Message)bool
+type OpHandler func(*RawMessage)bool
 type ErrHandler func(error)
 
 func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
@@ -65,7 +65,7 @@ func (c *Client) Room() *RoomInfo {
 	return c.room
 }
 
-func (c *Client) SendMsg(msg *Message) error {
+func (c *Client) SendMsg(msg *RawMessage) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -190,7 +190,7 @@ func (c *Client) msgLoop(token string) {
 		"key": token,
 	}
 	auth_data, _ := json.Marshal(auth)
-	auth_msg := &Message{
+	auth_msg := &RawMessage{
 		Op: OP_AUTH,
 		Seq: 1,
 		Data: auth_data,
@@ -223,7 +223,7 @@ func (c *Client) decodeMessage(data []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	msg := &Message{}
+	msg := &RawMessage{}
 	data, err := msg.Decode(data)
 
 	if err != nil {
@@ -247,7 +247,7 @@ func (c *Client) decodeMessage(data []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (c *Client) dispatchMessage(msg *Message) {
+func (c *Client) dispatchMessage(msg *RawMessage) {
 	if handlers, ok := c.conf.OpHandlerMap[msg.Op]; ok {
 		for _, cb := range handlers {
 			if cb(msg) {
@@ -270,8 +270,8 @@ func (c *Client) tryReconnect(err error) {
 	go c.reconnect()
 }
 
-func (c *Client) onAuthReply(msg *Message) bool {
-	c.SendMsg(&Message{Op: OP_HEARTBEAT, Seq: 1, Data: HEARTBEAT_MSG})
+func (c *Client) onAuthReply(msg *RawMessage) bool {
+	c.SendMsg(&RawMessage{Op: OP_HEARTBEAT, Seq: 1, Data: HEARTBEAT_MSG})
 	if atomic.CompareAndSwapInt32(&(c.heartbeat_init), 0, 1) {
 		go c.heartBeat()
 	}
@@ -283,6 +283,6 @@ func (c *Client) heartBeat() {
 	if atomic.LoadInt32(&(c.closed)) != 0 {
 		return
 	}
-	c.SendMsg(&Message{Op: OP_HEARTBEAT, Seq: 1, Data: HEARTBEAT_MSG})
+	c.SendMsg(&RawMessage{Op: OP_HEARTBEAT, Seq: 1, Data: HEARTBEAT_MSG})
 	go c.heartBeat()
 }
