@@ -9,13 +9,13 @@ import (
 	"github.com/andybalholm/brotli"
 )
 
-var ErrMsgIncomplete error = errors.New("Msg not complete")
-var ErrMsgUnknownProtocolVersion error = errors.New("Msg has an unknown version")
+var ErrMsgIncomplete error = errors.New("msg not complete")
+var ErrMsgUnknownProtocolVersion error = errors.New("msg has an unknown version")
 
 type RawMessage struct {
-	Ver int
-	Op uint32
-	Seq uint32
+	Ver  int
+	Op   uint32
+	Seq  uint32
 	Data []byte
 }
 
@@ -40,7 +40,7 @@ func (msg *RawMessage) Decode(buf []byte) ([]byte, error) {
 	}
 
 	total_len, buf := readUint32(buf)
-	if total_len > uint32(len(buf) + 4) {
+	if total_len > uint32(len(buf)+4) {
 		return buf, ErrMsgIncomplete
 	}
 

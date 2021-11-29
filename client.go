@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	jsoniter "github.com/json-iterator/go"
 )
 
-var ErrNotConnected error = errors.New("Not connected")
+var ErrNotConnected error = errors.New("not connected")
 
-type OpHandler func(*RawMessage)bool
+type OpHandler func(*RawMessage) bool
+type CmdHandler func(string, []byte) bool
 type ErrHandler func(error)
 
 func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
@@ -31,7 +33,12 @@ func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 		conf.OpHandlerMap = make(map[uint32][]OpHandler)
 	}
 
+	if conf.CmdHandlerMap == nil {
+		conf.CmdHandlerMap = make(map[string][]CmdHandler)
+	}
+
 	conf.OpHandlerMap[OP_AUTH_REPLY] = append(conf.OpHandlerMap[OP_AUTH_REPLY], ret.onAuthReply)
+	conf.OpHandlerMap[OP_SEND_MSG_REPLY] = append(conf.OpHandlerMap[OP_SEND_MSG_REPLY], ret.onChatMsg)
 
 	ret.conf = conf
 	err := ret.connect(bilibili_live_room_id)
@@ -39,7 +46,9 @@ func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 }
 
 type ClientConf struct {
-	OpHandlerMap map[uint32][]OpHandler
+	OpHandlerMap  map[uint32][]OpHandler
+	CmdHandlerMap map[string][]CmdHandler
+
 	OnDisconnect ErrHandler
 }
 
@@ -50,8 +59,8 @@ type Client struct {
 	conf *ClientConf
 	room *RoomInfo
 
-	host_shift uint32
-	closed int32
+	host_shift     uint32
+	closed         int32
 	heartbeat_init int32
 }
 
@@ -80,9 +89,9 @@ func (c *Client) connect(bilibili_live_room_id int) error {
 	// get room info
 	room_info := &RoomInfo{}
 	info_rsp := struct {
-		Code int `json:"code"`
-		Message string `json:"message"`
-		Data *RoomInfo `json:"data"`
+		Code    int       `json:"code"`
+		Message string    `json:"message"`
+		Data    *RoomInfo `json:"data"`
 	}{
 		Data: room_info,
 	}
@@ -98,12 +107,12 @@ func (c *Client) connect(bilibili_live_room_id int) error {
 	return c.reconnect()
 }
 
-func (c* Client) reconnect() error {
+func (c *Client) reconnect() error {
 	// get danmaku info
 	dm_rsp := struct {
-		Code int `json:"code"`
-		Message string `json:"message"`
-		Data DanmakuInfo `json:"data"`
+		Code    int         `json:"code"`
+		Message string      `json:"message"`
+		Data    DanmakuInfo `json:"data"`
 	}{}
 	err := c.httpGet(DANMAKU_INFO_API, map[string]string{"id": strconv.Itoa(c.room.Base.RoomID), "type": "0"}, &dm_rsp)
 	if err != nil {
@@ -115,16 +124,16 @@ func (c* Client) reconnect() error {
 
 	if len(dm_rsp.Data.HostList) == 0 {
 		dm_rsp.Data.HostList = []DanmakuHost{{
-			Host: `broadcastlv.chat.bilibili.com`,
-			Port: 2243,
+			Host:    `broadcastlv.chat.bilibili.com`,
+			Port:    2243,
 			WssPort: 443,
-			WsPort: 2244,
-		},}
+			WsPort:  2244,
+		}}
 	}
 
 	hosts := dm_rsp.Data.HostList
 	shift := atomic.LoadUint32(&(c.host_shift))
-	for i := uint32(0); i < shift % uint32(len(hosts)); i++ {
+	for i := uint32(0); i < shift%uint32(len(hosts)); i++ {
 		hosts = append(hosts[1:], hosts[0])
 	}
 
@@ -132,7 +141,7 @@ func (c* Client) reconnect() error {
 	for _, host := range hosts {
 		dailer := websocket.Dialer{}
 		ws_url := "wss://" + host.Host + ":" + strconv.Itoa(host.WssPort) + "/sub"
-		c.conn, _ , err = dailer.Dial(ws_url, http.Header{})
+		c.conn, _, err = dailer.Dial(ws_url, http.Header{})
 		if err == nil {
 			go c.msgLoop(dm_rsp.Data.Token)
 			return nil
@@ -182,17 +191,17 @@ func (c *Client) msgLoop(token string) {
 
 	// auth
 	auth := map[string]interface{}{
-		"uid": 0,
-		"roomid": c.room.Base.RoomID,
+		"uid":      0,
+		"roomid":   c.room.Base.RoomID,
 		"protover": 3,
 		"platform": "web",
-		"type": 2,
-		"key": token,
+		"type":     2,
+		"key":      token,
 	}
 	auth_data, _ := json.Marshal(auth)
 	auth_msg := &RawMessage{
-		Op: OP_AUTH,
-		Seq: 1,
+		Op:   OP_AUTH,
+		Seq:  1,
 		Data: auth_data,
 	}
 	if err := c.conn.WriteMessage(2, auth_msg.Encode()); err != nil {
@@ -285,4 +294,31 @@ func (c *Client) heartBeat() {
 	}
 	c.SendMsg(&RawMessage{Op: OP_HEARTBEAT, Seq: 1, Data: HEARTBEAT_MSG})
 	go c.heartBeat()
+}
+
+func (c *Client) onChatMsg(msg *RawMessage) bool {
+	// get cmd
+	iter := jsoniter.NewIterator(jsoniter.ConfigCompatibleWithStandardLibrary)
+	iter = iter.ResetBytes(msg.Data)
+	cmd := ""
+	var data []byte = nil
+	iter.ReadObjectCB(func(iter *jsoniter.Iterator, key string) bool {
+		if key == "cmd" {
+			cmd = string(iter.SkipAndReturnBytes())
+			return true
+		}
+		if key == "data" {
+			data = iter.SkipAndReturnBytes()
+		}
+		return true
+	})
+
+	if handlers, ok := c.conf.CmdHandlerMap[cmd]; ok {
+		for _, cb := range handlers {
+			if cb(cmd, data) {
+				break
+			}
+		}
+	}
+	return true
 }
