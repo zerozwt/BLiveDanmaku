@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -50,7 +50,7 @@ func main() {
 
 	conf := dm.ClientConf{
 		OpHandlerMap: map[uint32][]dm.OpHandler{
-			dm.OP_SEND_MSG_REPLY: []dm.OpHandler{onMsg},
+			dm.OP_SEND_MSG_REPLY: {onMsg},
 		},
 		OnDisconnect: func(error) {
 			fmt.Println("Connection loss detected, reconnect...")

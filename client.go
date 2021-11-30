@@ -303,12 +303,12 @@ func (c *Client) onChatMsg(msg *RawMessage) bool {
 	cmd := ""
 	var data []byte = nil
 	iter.ReadObjectCB(func(iter *jsoniter.Iterator, key string) bool {
-		json_data := iter.SkipAndReturnBytes()
 		if key == "cmd" {
-			cmd = string(json_data)
+			cmd = iter.ReadString()
 			return true
 		}
-		if key == "data" {
+		json_data := iter.SkipAndReturnBytes()
+		if key == "data" || key == "info" {
 			data = json_data
 		}
 		return true

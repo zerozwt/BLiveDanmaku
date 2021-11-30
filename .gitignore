@@ -2,3 +2,4 @@ log.txt
 *.exe
 desktop.ini
 example/raw_message/raw_message*
+example/live_chat/live_chat*
