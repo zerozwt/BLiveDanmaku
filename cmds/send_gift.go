@@ -38,7 +38,7 @@ type SendGift struct {
 		UserName   string      `json:"uname"`
 	} `json:"combo_send"`
 	ComboStayTime     int         `json:"combo_stay_time"`
-	ComboTotalCoin    int         `json:"combo_total_coin"`
+	ComboTotalCoin    int64       `json:"combo_total_coin"`
 	CritProb          int         `json:"crit_prob"`
 	Demarcation       int         `json:"demarcation"`
 	DiscountPrice     int64       `json:"discount_price"`

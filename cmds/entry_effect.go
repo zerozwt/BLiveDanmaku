@@ -3,11 +3,11 @@ package cmds
 type EntryEffect struct {
 	ID               int64   `json:"id"`
 	UID              int64   `json:"uid"`
-	TargetID         int64   `json:"target_id"`
+	TargetID         int64   `json:"target_id"` // 直播间主播UID
 	MockEffect       int     `json:"mock_effect"`
 	Face             string  `json:"face"`
 	PrivilegeType    int     `json:"privilege_type"`
-	CopyWritting     string  `json:"copy_writing"`
+	CopyWritting     string  `json:"copy_writing"` // 欢迎舰长XXX进入直播间
 	CopyColor        string  `json:"copy_color"`
 	HighlightColor   string  `json:"highlight_color"`
 	Priority         int     `json:"priority"`

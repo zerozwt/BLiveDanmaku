@@ -1,6 +1,6 @@
 package cmds
 
-type InteractWord struct {
+type InteractWord struct { // XXX进入直播间
 	Contribution struct {
 		Grade int `json:"grade"`
 	} `json:"contribution"`

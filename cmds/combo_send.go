@@ -23,20 +23,20 @@ type ComboSend struct {
 }
 
 type MedalInfo struct {
-	AnchorRoomID     int    `json:"anchor_roomid"`
-	AnchorName       string `json:"anchor_uname"`
-	GuardLevel       int    `json:"guard_level"` // 1-总督 2-提督 3-舰长
-	IconID           int64  `json:"icon_id"`
-	IsLighted        int    `json:"is_lighted"`
-	MedalColor       int64  `json:"medal_color"`
-	MedalColorBorder int64  `json:"medal_color_border"`
-	MedalColorEnd    int64  `json:"medal_color_end"`
-	MedalColorStart  int64  `json:"medal_color_start"`
-	MedalLevel       int    `json:"medal_level"`
-	MedalName        string `json:"medal_name"`
-	Special          string `json:"special"`
-	TargetID         int64  `json:"target_id"` // 主播UID
-	Score            int    `json:"score"`
+	AnchorRoomID     int         `json:"anchor_roomid"`
+	AnchorName       string      `json:"anchor_uname"`
+	GuardLevel       int         `json:"guard_level"` // 1-总督 2-提督 3-舰长
+	IconID           int64       `json:"icon_id"`
+	IsLighted        int         `json:"is_lighted"`
+	MedalColor       interface{} `json:"medal_color"` // maybe float64(integer) or string(in SUPER_CHAT_MESSAGE) <- Fxxk bulibuli
+	MedalColorBorder int64       `json:"medal_color_border"`
+	MedalColorEnd    int64       `json:"medal_color_end"`
+	MedalColorStart  int64       `json:"medal_color_start"`
+	MedalLevel       int         `json:"medal_level"`
+	MedalName        string      `json:"medal_name"`
+	Special          string      `json:"special"`
+	TargetID         int64       `json:"target_id"` // 主播UID
+	Score            int         `json:"score"`
 }
 
 func (i *ComboSend) Decode(data []byte) error {
