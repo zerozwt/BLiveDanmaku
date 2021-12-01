@@ -51,7 +51,7 @@ func writeMedal(medal *cmds.MedalInfo, builder *strings.Builder) {
 	builder.WriteByte(']')
 }
 
-func onChat(cmd string, data []byte) bool {
+func onChat(client *dm.Client, cmd string, data []byte) bool {
 	obj := cmds.DanmakuMsg{}
 	if err := obj.Decode(data); err != nil {
 		fmt.Printf("decode %s failed: %v\n", cmd, err)
@@ -78,7 +78,7 @@ func onChat(cmd string, data []byte) bool {
 	return false
 }
 
-func onSuperChat(cmd string, data []byte) bool {
+func onSuperChat(client *dm.Client, cmd string, data []byte) bool {
 	obj := cmds.SuperChatMessage{}
 	if err := obj.Decode(data); err != nil {
 		fmt.Printf("decode %s failed: %v\n", cmd, err)
@@ -108,7 +108,7 @@ func onSuperChat(cmd string, data []byte) bool {
 	return false
 }
 
-func onNewGuard(cmd string, data []byte) bool {
+func onNewGuard(client *dm.Client, cmd string, data []byte) bool {
 	obj := cmds.GuardBuy{}
 	if err := obj.Decode(data); err != nil {
 		fmt.Printf("decode %s failed: %v\n", cmd, err)
@@ -126,7 +126,7 @@ func onNewGuard(cmd string, data []byte) bool {
 	return false
 }
 
-func onVIPEntry(cmd string, data []byte) bool {
+func onVIPEntry(client *dm.Client, cmd string, data []byte) bool {
 	obj := cmds.EntryEffect{}
 	if err := obj.Decode(data); err != nil {
 		fmt.Printf("decode %s failed: %v\n", cmd, err)
@@ -142,6 +142,17 @@ func onVIPEntry(cmd string, data []byte) bool {
 	return false
 }
 
+var client *dm.Client
+var conf *dm.ClientConf
+
+func onNetError(_ *dm.Client, err error) {
+	fmt.Printf("Connection loss detected [%v], reconnect...\n", err)
+	for err != nil {
+		client, err = dm.Dial(room_id, conf)
+		fmt.Printf("Reconnect failed: %v, try again ...", err)
+	}
+}
+
 func main() {
 	flag.IntVar(&room_id, "room_id", 0, "room id of bilibili live room")
 	flag.Parse()
@@ -151,10 +162,8 @@ func main() {
 		return
 	}
 
-	conf := dm.ClientConf{
-		OnDisconnect: func(error) {
-			fmt.Println("Connection loss detected, reconnect...")
-		},
+	conf = &dm.ClientConf{
+		OnNetError: onNetError,
 		CmdHandlerMap: map[string][]dm.CmdHandler{
 			dm.CMD_DANMU_MSG:          {onChat},
 			dm.CMD_SUPER_CHAT_MESSAGE: {onSuperChat},
@@ -162,7 +171,8 @@ func main() {
 			dm.CMD_ENTRY_EFFECT:       {onVIPEntry},
 		},
 	}
-	client, err := dm.Dial(room_id, &conf)
+	var err error
+	client, err = dm.Dial(room_id, conf)
 	if err != nil {
 		fmt.Println("Connect to live room failed:", err)
 		return

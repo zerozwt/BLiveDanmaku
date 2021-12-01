@@ -3,12 +3,8 @@ package BLiveDanmaku
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strconv"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,28 +13,18 @@ import (
 )
 
 var ErrNotConnected error = errors.New("not connected")
+var ErrClosed error = errors.New("underlyinh websocket closed")
 
-type OpHandler func(*RawMessage) bool
-type CmdHandler func(string, []byte) bool
-type ErrHandler func(error)
+type OpHandler func(*Client, *RawMessage) bool
+type CmdHandler func(*Client, string, []byte) bool
+type ErrHandler func(*Client, error)
+type ServerDisconnectHandler func(*Client, error)
 
 func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 	ret := &Client{}
 
-	if conf == nil {
-		conf = &ClientConf{}
-	}
-
-	if conf.OpHandlerMap == nil {
-		conf.OpHandlerMap = make(map[uint32][]OpHandler)
-	}
-
-	if conf.CmdHandlerMap == nil {
-		conf.CmdHandlerMap = make(map[string][]CmdHandler)
-	}
-
-	conf.OpHandlerMap[OP_AUTH_REPLY] = append(conf.OpHandlerMap[OP_AUTH_REPLY], ret.onAuthReply)
-	conf.OpHandlerMap[OP_SEND_MSG_REPLY] = append(conf.OpHandlerMap[OP_SEND_MSG_REPLY], ret.onChatMsg)
+	conf = conf.Clone()
+	conf.AddOpHandler(OP_AUTH_REPLY, ret.onAuthReply).AddOpHandler(OP_SEND_MSG_REPLY, ret.onChatMsg)
 
 	ret.conf = conf
 	err := ret.connect(bilibili_live_room_id)
@@ -49,17 +35,55 @@ type ClientConf struct {
 	OpHandlerMap  map[uint32][]OpHandler
 	CmdHandlerMap map[string][]CmdHandler
 
-	OnDisconnect ErrHandler
+	OnNetError         ErrHandler
+	OnServerDisconnect ServerDisconnectHandler
+}
+
+func (c *ClientConf) Clone() *ClientConf {
+	ret := &ClientConf{
+		OpHandlerMap:  map[uint32][]OpHandler{},
+		CmdHandlerMap: map[string][]CmdHandler{},
+	}
+	if c == nil {
+		return ret
+	}
+
+	ret.OnNetError = c.OnNetError
+	ret.OnServerDisconnect = c.OnServerDisconnect
+
+	for key, handlers := range c.OpHandlerMap {
+		ret.OpHandlerMap[key] = append([]OpHandler{}, handlers...)
+	}
+
+	for key, handlers := range c.CmdHandlerMap {
+		ret.CmdHandlerMap[key] = append([]CmdHandler{}, handlers...)
+	}
+
+	return ret
+}
+
+func (c *ClientConf) AddOpHandler(op uint32, cb OpHandler) *ClientConf {
+	if c.OpHandlerMap == nil {
+		c.OpHandlerMap = make(map[uint32][]OpHandler)
+	}
+	c.OpHandlerMap[op] = append(c.OpHandlerMap[op], cb)
+	return c
+}
+
+func (c *ClientConf) AddCmdHandler(cmd string, cb CmdHandler) *ClientConf {
+	if c.CmdHandlerMap == nil {
+		c.CmdHandlerMap = make(map[string][]CmdHandler)
+	}
+	c.CmdHandlerMap[cmd] = append(c.CmdHandlerMap[cmd], cb)
+	return c
 }
 
 type Client struct {
 	conn *websocket.Conn
-	lock sync.Mutex
 
 	conf *ClientConf
-	room *RoomInfo
+	room atomic.Value
 
-	host_shift     uint32
 	closed         int32
 	heartbeat_init int32
 }
@@ -67,17 +91,21 @@ type Client struct {
 func (c *Client) Close() {
 	if c.conn != nil && atomic.CompareAndSwapInt32(&(c.closed), 0, 1) {
 		c.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Time{})
+		c.conn.Close()
 	}
 }
 
 func (c *Client) Room() *RoomInfo {
-	return c.room
+	if room, ok := c.room.Load().(*RoomInfo); ok {
+		return room
+	}
+	return &RoomInfo{}
 }
 
 func (c *Client) SendMsg(msg *RawMessage) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
+	if atomic.LoadInt32(&(c.closed)) != 0 {
+		return ErrClosed
+	}
 	if c.conn != nil {
 		return c.conn.WriteMessage(2, msg.Encode())
 	}
@@ -87,63 +115,25 @@ func (c *Client) SendMsg(msg *RawMessage) error {
 
 func (c *Client) connect(bilibili_live_room_id int) error {
 	// get room info
-	room_info := &RoomInfo{}
-	info_rsp := struct {
-		Code    int       `json:"code"`
-		Message string    `json:"message"`
-		Data    *RoomInfo `json:"data"`
-	}{
-		Data: room_info,
-	}
-	err := c.httpGet(ROOM_INFO_API, map[string]string{"room_id": strconv.Itoa(bilibili_live_room_id)}, &info_rsp)
+	room_info, err := GetRoomInfo(bilibili_live_room_id)
 	if err != nil {
 		return err
 	}
-	if info_rsp.Code != 0 {
-		return errors.New("Get room info failed: [" + strconv.Itoa(info_rsp.Code) + "] " + info_rsp.Message)
-	}
-	c.room = room_info
+	c.room.Store(room_info)
 
-	return c.reconnect()
-}
-
-func (c *Client) reconnect() error {
 	// get danmaku info
-	dm_rsp := struct {
-		Code    int         `json:"code"`
-		Message string      `json:"message"`
-		Data    DanmakuInfo `json:"data"`
-	}{}
-	err := c.httpGet(DANMAKU_INFO_API, map[string]string{"id": strconv.Itoa(c.room.Base.RoomID), "type": "0"}, &dm_rsp)
+	danmaku_info, err := GetDanmakuInfo(room_info.Base.RoomID)
 	if err != nil {
 		return err
-	}
-	if dm_rsp.Code != 0 {
-		return errors.New("Get danmaku info failed: [" + strconv.Itoa(dm_rsp.Code) + "] " + dm_rsp.Message)
-	}
-
-	if len(dm_rsp.Data.HostList) == 0 {
-		dm_rsp.Data.HostList = []DanmakuHost{{
-			Host:    `broadcastlv.chat.bilibili.com`,
-			Port:    2243,
-			WssPort: 443,
-			WsPort:  2244,
-		}}
-	}
-
-	hosts := dm_rsp.Data.HostList
-	shift := atomic.LoadUint32(&(c.host_shift))
-	for i := uint32(0); i < shift%uint32(len(hosts)); i++ {
-		hosts = append(hosts[1:], hosts[0])
 	}
 
 	// try to connect hosts one by one
-	for _, host := range hosts {
+	for _, host := range danmaku_info.HostList {
 		dailer := websocket.Dialer{}
 		ws_url := "wss://" + host.Host + ":" + strconv.Itoa(host.WssPort) + "/sub"
 		c.conn, _, err = dailer.Dial(ws_url, http.Header{})
 		if err == nil {
-			go c.msgLoop(dm_rsp.Data.Token)
+			go c.msgLoop(danmaku_info.Token)
 			return nil
 		}
 	}
@@ -151,48 +141,15 @@ func (c *Client) reconnect() error {
 	return err
 }
 
-func (c *Client) httpGet(base_url string, params map[string]string, rsp interface{}) error {
-	tmp := strings.Builder{}
-	tmp.WriteString(base_url)
-	first := true
-	for k, v := range params {
-		if first {
-			tmp.WriteByte('?')
-			first = false
-		} else {
-			tmp.WriteByte('&')
-		}
-		tmp.WriteString(k)
-		tmp.WriteByte('=')
-		tmp.WriteString(url.QueryEscape(v))
-	}
-	real_url := tmp.String()
-
-	http_rsp, err := http.Get(real_url)
-	if err != nil {
-		return err
-	}
-	defer http_rsp.Body.Close()
-
-	data, err := ioutil.ReadAll(http_rsp.Body)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(data, rsp)
-}
-
 func (c *Client) msgLoop(token string) {
 	if atomic.LoadInt32(&(c.closed)) != 0 {
-		c.conn.Close()
-		c.conn = nil
 		return
 	}
 
 	// auth
 	auth := map[string]interface{}{
 		"uid":      0,
-		"roomid":   c.room.Base.RoomID,
+		"roomid":   c.Room().Base.RoomID,
 		"protover": 3,
 		"platform": "web",
 		"type":     2,
@@ -205,9 +162,8 @@ func (c *Client) msgLoop(token string) {
 		Data: auth_data,
 	}
 	if err := c.conn.WriteMessage(2, auth_msg.Encode()); err != nil {
-		atomic.AddUint32(&(c.host_shift), 1)
 		if atomic.LoadInt32(&(c.closed)) == 0 {
-			c.tryReconnect(err)
+			c.onError(err)
 		}
 		return
 	}
@@ -217,7 +173,7 @@ func (c *Client) msgLoop(token string) {
 		mt, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			if atomic.LoadInt32(&(c.closed)) == 0 {
-				c.tryReconnect(err)
+				c.onError(err)
 			}
 			return
 		}
@@ -259,27 +215,30 @@ func (c *Client) decodeMessage(data []byte) ([]byte, error) {
 func (c *Client) dispatchMessage(msg *RawMessage) {
 	if handlers, ok := c.conf.OpHandlerMap[msg.Op]; ok {
 		for _, cb := range handlers {
-			if cb(msg) {
+			if cb(c, msg) {
 				break
 			}
 		}
 	}
 }
 
-func (c *Client) tryReconnect(err error) {
+func (c *Client) onError(err error) {
 	if atomic.LoadInt32(&(c.closed)) != 0 {
 		return
 	}
-
-	c.conn.Close()
-	c.conn = nil
-	if !websocket.IsCloseError(err, websocket.CloseNormalClosure) && c.conf.OnDisconnect != nil {
-		c.conf.OnDisconnect(err)
+	c.Close()
+	if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+		if c.conf.OnNetError != nil {
+			c.conf.OnNetError(c, err)
+		}
+	} else {
+		if c.conf.OnServerDisconnect != nil {
+			c.conf.OnServerDisconnect(c, err)
+		}
 	}
-	go c.reconnect()
 }
 
-func (c *Client) onAuthReply(msg *RawMessage) bool {
+func (c *Client) onAuthReply(_ *Client, msg *RawMessage) bool {
 	c.SendMsg(&RawMessage{Op: OP_HEARTBEAT, Seq: 1, Data: HEARTBEAT_MSG})
 	if atomic.CompareAndSwapInt32(&(c.heartbeat_init), 0, 1) {
 		go c.heartBeat()
@@ -296,7 +255,7 @@ func (c *Client) heartBeat() {
 	go c.heartBeat()
 }
 
-func (c *Client) onChatMsg(msg *RawMessage) bool {
+func (c *Client) onChatMsg(_ *Client, msg *RawMessage) bool {
 	// get cmd
 	iter := jsoniter.NewIterator(jsoniter.ConfigCompatibleWithStandardLibrary)
 	iter = iter.ResetBytes(msg.Data)
@@ -316,7 +275,7 @@ func (c *Client) onChatMsg(msg *RawMessage) bool {
 
 	if handlers, ok := c.conf.CmdHandlerMap[cmd]; ok {
 		for _, cb := range handlers {
-			if cb(cmd, data) {
+			if cb(c, cmd, data) {
 				break
 			}
 		}

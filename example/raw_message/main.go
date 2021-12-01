@@ -21,7 +21,7 @@ func waitSignal(done chan bool) {
 	close(done)
 }
 
-func onMsg(msg *dm.RawMessage) bool {
+func onMsg(_ *dm.Client, msg *dm.RawMessage) bool {
 	if len(log) == 0 {
 		fmt.Println(string(msg.Data))
 		return false
@@ -38,6 +38,17 @@ func onMsg(msg *dm.RawMessage) bool {
 	return false
 }
 
+var client *dm.Client
+var conf *dm.ClientConf
+
+func onNetError(_ *dm.Client, err error) {
+	fmt.Printf("Connection loss detected [%v], reconnect...\n", err)
+	for err != nil {
+		client, err = dm.Dial(room_id, conf)
+		fmt.Printf("Reconnect failed: %v, try again ...", err)
+	}
+}
+
 func main() {
 	flag.IntVar(&room_id, "room_id", 0, "room id of bilibili live room")
 	flag.StringVar(&log, "log", "", "[optional] log file")
@@ -48,15 +59,14 @@ func main() {
 		return
 	}
 
-	conf := dm.ClientConf{
+	conf = &dm.ClientConf{
 		OpHandlerMap: map[uint32][]dm.OpHandler{
 			dm.OP_SEND_MSG_REPLY: {onMsg},
 		},
-		OnDisconnect: func(error) {
-			fmt.Println("Connection loss detected, reconnect...")
-		},
+		OnNetError: onNetError,
 	}
-	client, err := dm.Dial(room_id, &conf)
+	var err error
+	client, err = dm.Dial(room_id, conf)
 	if err != nil {
 		fmt.Println("Connect to live room failed:", err)
 		return
