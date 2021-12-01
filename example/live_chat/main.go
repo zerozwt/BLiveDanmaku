@@ -164,13 +164,10 @@ func main() {
 
 	conf = &dm.ClientConf{
 		OnNetError: onNetError,
-		CmdHandlerMap: map[string][]dm.CmdHandler{
-			dm.CMD_DANMU_MSG:          {onChat},
-			dm.CMD_SUPER_CHAT_MESSAGE: {onSuperChat},
-			dm.CMD_GUARD_BUY:          {onNewGuard},
-			dm.CMD_ENTRY_EFFECT:       {onVIPEntry},
-		},
 	}
+	conf.AddCmdHandler(dm.CMD_DANMU_MSG, onChat).AddCmdHandler(dm.CMD_SUPER_CHAT_MESSAGE, onSuperChat)
+	conf.AddCmdHandler(dm.CMD_GUARD_BUY, onNewGuard)
+	conf.AddCmdHandler(dm.CMD_ENTRY_EFFECT, onVIPEntry)
 	var err error
 	client, err = dm.Dial(room_id, conf)
 	if err != nil {
