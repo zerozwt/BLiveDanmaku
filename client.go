@@ -25,6 +25,7 @@ func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 
 	conf = conf.Clone()
 	conf.AddOpHandler(OP_AUTH_REPLY, ret.onAuthReply).AddOpHandler(OP_SEND_MSG_REPLY, ret.onChatMsg)
+	conf.AddCmdHandler(CMD_LIVE, ret.onLiveStateChange).AddCmdHandler(CMD_PREPARING, ret.onLiveStateChange)
 
 	ret.conf = conf
 	err := ret.connect(bilibili_live_room_id)
@@ -281,4 +282,13 @@ func (c *Client) onChatMsg(_ *Client, msg *RawMessage) bool {
 		}
 	}
 	return true
+}
+
+func (c *Client) onLiveStateChange(*Client, string, []byte) bool {
+	// get room info
+	room_info, err := GetRoomInfo(c.Room().Base.RoomID)
+	if err == nil {
+		c.room.Store(room_info)
+	}
+	return false
 }

@@ -21,4 +21,6 @@ const (
 	CMD_SUPER_CHAT_MESSAGE_DELETE     = "SUPER_CHAT_MESSAGE_DELETE"
 	CMD_SUPER_CHAT_MESSAGE_JPN        = "SUPER_CHAT_MESSAGE_JPN"
 	CMD_USER_TOAST_MSG                = "USER_TOAST_MSG"
+	CMD_LIVE                          = "LIVE"
+	CMD_PREPARING                     = "PREPARING"
 )
