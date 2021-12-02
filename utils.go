@@ -2,6 +2,7 @@ package BLiveDanmaku
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -64,6 +66,53 @@ func GetDanmakuInfo(room_id int) (*DanmakuInfo, error) {
 	return &dm_rsp.Data, nil
 }
 
+func SendMsg(msg string, room *RoomInfo, sess_data, jct string) error {
+	body := url.Values{}
+	body.Set("bubble", "0")
+	body.Set("msg", msg)
+	body.Set("color", strconv.Itoa(0xFFFFFF))
+	body.Set("mode", "1")
+	body.Set("fontsize", "25")
+	body.Set("rnd", fmt.Sprint(time.Now().Unix()))
+	body.Set("roomid", strconv.Itoa(room.Base.RoomID))
+	body.Set("csrf", jct)
+	body.Set("csrf_token", jct)
+	req, _ := http.NewRequest("POST", SEND_MSG_API, strings.NewReader(body.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Cookie", fmt.Sprintf("SESSDATA=%s; bili_jct=%s", sess_data, jct))
+
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != 200 {
+		return fmt.Errorf("http request failed: %d", rsp.StatusCode)
+	}
+
+	data, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		logger().Printf("http read body failed: url: %s err: %v", SEND_MSG_API, err)
+		return err
+	}
+
+	tmp := struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}{}
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
+	err = json.Unmarshal(data, &tmp)
+	if err != nil {
+		return err
+	}
+
+	if tmp.Code != 0 {
+		return fmt.Errorf("send msg failed: [%d] %s", tmp.Code, tmp.Message)
+	}
+	return nil
+}
+
 func httpGet(base_url string, params map[string]string, rsp interface{}) error {
 	tmp := strings.Builder{}
 	tmp.WriteString(base_url)
@@ -87,6 +136,10 @@ func httpGet(base_url string, params map[string]string, rsp interface{}) error {
 		return err
 	}
 	defer http_rsp.Body.Close()
+
+	if http_rsp.StatusCode != 200 {
+		return fmt.Errorf("http request failed: %d", http_rsp.StatusCode)
+	}
 
 	data, err := ioutil.ReadAll(http_rsp.Body)
 	if err != nil {
