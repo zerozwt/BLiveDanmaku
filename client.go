@@ -25,7 +25,7 @@ func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 
 	conf = conf.Clone()
 	conf.AddOpHandler(OP_AUTH_REPLY, ret.onAuthReply).AddOpHandler(OP_SEND_MSG_REPLY, ret.onChatMsg)
-	conf.AddCmdHandler(CMD_LIVE, ret.onLiveStateChange).AddCmdHandler(CMD_PREPARING, ret.onLiveStateChange)
+	conf.PrependCmdHandler(CMD_LIVE, ret.onLiveStateChange).PrependCmdHandler(CMD_PREPARING, ret.onLiveStateChange)
 
 	ret.conf = conf
 	err := ret.connect(bilibili_live_room_id)
@@ -76,6 +76,14 @@ func (c *ClientConf) AddCmdHandler(cmd string, cb CmdHandler) *ClientConf {
 		c.CmdHandlerMap = make(map[string][]CmdHandler)
 	}
 	c.CmdHandlerMap[cmd] = append(c.CmdHandlerMap[cmd], cb)
+	return c
+}
+
+func (c *ClientConf) PrependCmdHandler(cmd string, cb CmdHandler) *ClientConf {
+	if c.CmdHandlerMap == nil {
+		c.CmdHandlerMap = make(map[string][]CmdHandler)
+	}
+	c.CmdHandlerMap[cmd] = append([]CmdHandler{cb}, c.CmdHandlerMap[cmd]...)
 	return c
 }
 
