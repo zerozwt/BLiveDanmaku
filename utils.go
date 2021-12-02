@@ -2,14 +2,23 @@ package BLiveDanmaku
 
 import (
 	"errors"
+	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
 )
+
+var g_logger atomic.Value
+
+func init() {
+	SetLogWriter(NullWriter{})
+}
 
 func GetRoomInfo(room_id int) (*RoomInfo, error) {
 	room_info := &RoomInfo{}
@@ -74,15 +83,31 @@ func httpGet(base_url string, params map[string]string, rsp interface{}) error {
 
 	http_rsp, err := http.Get(real_url)
 	if err != nil {
+		logger().Printf("http get %s failed: %v", real_url, err)
 		return err
 	}
 	defer http_rsp.Body.Close()
 
 	data, err := ioutil.ReadAll(http_rsp.Body)
 	if err != nil {
+		logger().Printf("http read body failed: url: %s err: %v", real_url, err)
 		return err
 	}
 
 	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	return json.Unmarshal(data, rsp)
+}
+
+func logger() *log.Logger {
+	return g_logger.Load().(*log.Logger)
+}
+
+func SetLogWriter(out io.Writer) {
+	g_logger.Store(log.New(out, "BLiveDanmaku", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile))
+}
+
+type NullWriter struct{}
+
+func (w NullWriter) Write(data []byte) (int, error) {
+	return len(data), nil
 }

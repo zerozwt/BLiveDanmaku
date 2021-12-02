@@ -137,6 +137,7 @@ func (c *Client) connect(bilibili_live_room_id int) error {
 			go c.msgLoop(danmaku_info.Token)
 			return nil
 		}
+		logger().Printf("connect danmaku websocket server %s:%d failed: %v, try next server ...", host.Host, host.WssPort, err)
 	}
 
 	return err
