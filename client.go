@@ -14,6 +14,7 @@ import (
 
 var ErrNotConnected error = errors.New("not connected")
 var ErrClosed error = errors.New("underlyinh websocket closed")
+var ErrHeartbeatTimeout error = errors.New("heartbeat timeout")
 
 type OpHandler func(*Client, *RawMessage) bool
 type CmdHandler func(*Client, string, []byte) bool
@@ -25,9 +26,19 @@ func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 
 	conf = conf.Clone()
 	conf.AddOpHandler(OP_AUTH_REPLY, ret.onAuthReply).AddOpHandler(OP_SEND_MSG_REPLY, ret.onChatMsg)
+	conf.AddOpHandler(OP_HEARTBEAT_REPLY, ret.onServerHeartbeat)
 	conf.PrependCmdHandler(CMD_LIVE, ret.onLiveStateChange).PrependCmdHandler(CMD_PREPARING, ret.onLiveStateChange)
 
+	if conf.HeartbeatInterval <= 0 {
+		conf.HeartbeatInterval = time.Second * 30
+	}
+
+	if conf.HeartbeatTimeout < conf.HeartbeatInterval*2 {
+		conf.HeartbeatTimeout = conf.HeartbeatInterval * 2
+	}
+
 	ret.conf = conf
+	ret.last_heartbeat.Store(time.Now())
 	err := ret.connect(bilibili_live_room_id)
 	return ret, err
 }
@@ -38,6 +49,9 @@ type ClientConf struct {
 
 	OnNetError         ErrHandler
 	OnServerDisconnect ServerDisconnectHandler
+
+	HeartbeatInterval time.Duration
+	HeartbeatTimeout  time.Duration
 }
 
 func (c *ClientConf) Clone() *ClientConf {
@@ -49,9 +63,6 @@ func (c *ClientConf) Clone() *ClientConf {
 		return ret
 	}
 
-	ret.OnNetError = c.OnNetError
-	ret.OnServerDisconnect = c.OnServerDisconnect
-
 	for key, handlers := range c.OpHandlerMap {
 		ret.OpHandlerMap[key] = append([]OpHandler{}, handlers...)
 	}
@@ -60,6 +71,11 @@ func (c *ClientConf) Clone() *ClientConf {
 		ret.CmdHandlerMap[key] = append([]CmdHandler{}, handlers...)
 	}
 
+	ret.OnNetError = c.OnNetError
+	ret.OnServerDisconnect = c.OnServerDisconnect
+
+	ret.HeartbeatInterval = c.HeartbeatInterval
+	ret.HeartbeatTimeout = c.HeartbeatTimeout
 	return ret
 }
 
@@ -95,6 +111,7 @@ type Client struct {
 
 	closed         int32
 	heartbeat_init int32
+	last_heartbeat atomic.Value // time.Time
 }
 
 func (c *Client) Close() {
@@ -172,9 +189,7 @@ func (c *Client) msgLoop(token string) {
 		Data: auth_data,
 	}
 	if err := c.conn.WriteMessage(2, auth_msg.Encode()); err != nil {
-		if atomic.LoadInt32(&(c.closed)) == 0 {
-			c.onError(err)
-		}
+		c.onError(err)
 		return
 	}
 
@@ -182,9 +197,7 @@ func (c *Client) msgLoop(token string) {
 	for {
 		mt, msg, err := c.conn.ReadMessage()
 		if err != nil {
-			if atomic.LoadInt32(&(c.closed)) == 0 {
-				c.onError(err)
-			}
+			c.onError(err)
 			return
 		}
 		if mt == 1 || mt == 2 {
@@ -257,12 +270,31 @@ func (c *Client) onAuthReply(_ *Client, msg *RawMessage) bool {
 }
 
 func (c *Client) heartBeat() {
-	<-time.After(time.Second * 30)
+	<-time.After(c.conf.HeartbeatInterval)
 	if atomic.LoadInt32(&(c.closed)) != 0 {
+		return
+	}
+	if time.Since(c.lastHeartbeat()) > c.conf.HeartbeatTimeout {
+		c.Close()
+		if c.conf.OnNetError != nil {
+			c.conf.OnNetError(c, ErrHeartbeatTimeout)
+		}
 		return
 	}
 	c.SendMsg(&RawMessage{Op: OP_HEARTBEAT, Seq: 1, Data: HEARTBEAT_MSG})
 	go c.heartBeat()
+}
+
+func (c *Client) lastHeartbeat() time.Time {
+	if ret, ok := c.last_heartbeat.Load().(time.Time); ok {
+		return ret
+	}
+	return time.Time{}
+}
+
+func (c *Client) onServerHeartbeat(_ *Client, msg *RawMessage) bool {
+	c.last_heartbeat.Store(time.Now())
+	return false
 }
 
 func (c *Client) onChatMsg(_ *Client, msg *RawMessage) bool {
