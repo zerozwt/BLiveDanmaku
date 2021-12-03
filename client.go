@@ -37,6 +37,10 @@ func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
 		conf.HeartbeatTimeout = conf.HeartbeatInterval * 2
 	}
 
+	if conf.HandshakeTimeout <= 0 {
+		conf.HandshakeTimeout = time.Second * 10
+	}
+
 	ret.conf = conf
 	ret.last_heartbeat.Store(time.Now())
 	err := ret.connect(bilibili_live_room_id)
@@ -52,6 +56,8 @@ type ClientConf struct {
 
 	HeartbeatInterval time.Duration
 	HeartbeatTimeout  time.Duration
+
+	HandshakeTimeout time.Duration
 }
 
 func (c *ClientConf) Clone() *ClientConf {
@@ -76,6 +82,7 @@ func (c *ClientConf) Clone() *ClientConf {
 
 	ret.HeartbeatInterval = c.HeartbeatInterval
 	ret.HeartbeatTimeout = c.HeartbeatTimeout
+	ret.HandshakeTimeout = c.HandshakeTimeout
 	return ret
 }
 
@@ -155,7 +162,7 @@ func (c *Client) connect(bilibili_live_room_id int) error {
 
 	// try to connect hosts one by one
 	for _, host := range danmaku_info.HostList {
-		dailer := websocket.Dialer{}
+		dailer := websocket.Dialer{HandshakeTimeout: c.conf.HandshakeTimeout}
 		ws_url := "wss://" + host.Host + ":" + strconv.Itoa(host.WssPort) + "/sub"
 		c.conn, _, err = dailer.Dial(ws_url, http.Header{})
 		if err == nil {
