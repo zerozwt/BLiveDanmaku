@@ -1,7 +1,6 @@
 package BLiveDanmaku
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -189,6 +188,7 @@ func (c *Client) msgLoop(token string) {
 		"type":     2,
 		"key":      token,
 	}
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	auth_data, _ := json.Marshal(auth)
 	auth_msg := &RawMessage{
 		Op:   OP_AUTH,
