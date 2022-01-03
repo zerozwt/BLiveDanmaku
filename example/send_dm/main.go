@@ -13,12 +13,10 @@ func main() {
 	msg := ""
 	sess_data := ""
 	jct := ""
-	dev_id := ""
 
 	flag.UintVar(&sender, "sender", 0, "sender UID")
 	flag.UintVar(&reciever, "reciever", 0, "reciever UID")
 	flag.StringVar(&msg, "msg", "", "direct msg to send")
-	flag.StringVar(&dev_id, "dev", "", "direct msg send dev_id")
 	flag.StringVar(&sess_data, "sess_data", "", "your SESS_DATA")
 	flag.StringVar(&jct, "jct", "", "your JCT")
 	flag.Parse()
@@ -35,10 +33,6 @@ func main() {
 		fmt.Println("msg is empty")
 		return
 	}
-	if len(dev_id) == 0 {
-		fmt.Println("dev_id not specified")
-		return
-	}
 	if sender == 0 {
 		fmt.Println("sender not specified")
 		return
@@ -47,6 +41,13 @@ func main() {
 		fmt.Println("reciever not specifed")
 		return
 	}
+
+	dev_id, err := dm.GetDMDeviceID()
+	if err != nil {
+		fmt.Printf("Get DM device id failed: %v", err)
+		return
+	}
+	fmt.Println("dev_id:", dev_id)
 
 	rsp, err := dm.SendDirectMsg(int64(sender), int64(reciever), msg, dev_id, sess_data, jct)
 

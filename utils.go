@@ -1,6 +1,7 @@
 package BLiveDanmaku
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -111,6 +112,36 @@ func SendMsg(msg string, room *RoomInfo, sess_data, jct string) error {
 		return fmt.Errorf("send msg failed: [%d] %s", tmp.Code, tmp.Message)
 	}
 	return nil
+}
+
+func GetDMDeviceID() (string, error) {
+	template := "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+	hex := []byte("0123456789ABCDEF")
+	ch_buf := [1]byte{}
+	ret := make([]byte, 0, len(template))
+
+	for _, ch := range template {
+		switch ch {
+		case 'x':
+			_, err := rand.Read(ch_buf[:])
+			if err != nil {
+				return "", err
+			}
+			ch_buf[0] = hex[ch_buf[0]&0xF]
+			ret = append(ret, ch_buf[0])
+		case 'y':
+			_, err := rand.Read(ch_buf[:])
+			if err != nil {
+				return "", err
+			}
+			ch_buf[0] = hex[((ch_buf[0]&0xF)&0x3)|0x8]
+			ret = append(ret, ch_buf[0])
+		default:
+			ret = append(ret, byte(ch))
+		}
+	}
+
+	return string(ret), nil
 }
 
 type SendDirectMsgRsp struct {
