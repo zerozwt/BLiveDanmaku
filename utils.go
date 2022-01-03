@@ -113,6 +113,70 @@ func SendMsg(msg string, room *RoomInfo, sess_data, jct string) error {
 	return nil
 }
 
+type SendDirectMsgRsp struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	TTL     int    `json:"ttl"`
+	Data    struct {
+		KeyHitInfos map[string]interface{} `json:"key_hit_infos"`
+		Content     string                 `json:"msg_content"`
+		MsgKey      uint64                 `json:"msg_key"`
+	} `json:"data"`
+}
+
+func SendDirectMsg(sender, reciever int64, content, dev_id, sess_data, jct string) (*SendDirectMsgRsp, error) {
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
+
+	// wrap content
+	tmp := map[string]string{"content": content}
+	content_data, _ := json.Marshal(tmp)
+
+	// build body
+	body := url.Values{}
+	body.Set("msg[sender_uid]", fmt.Sprint(sender))
+	body.Set("msg[receiver_id]", fmt.Sprint(reciever))
+	body.Set("msg[receiver_type]", "1")
+	body.Set("msg[msg_type]", "1")
+	body.Set("msg[msg_status]", "0")
+	body.Set("msg[content]", string(content_data))
+	body.Set("msg[timestamp]", fmt.Sprint(time.Now().Unix()))
+	body.Set("msg[new_face_version]", "0")
+	body.Set("msg[dev_id]", dev_id)
+	body.Set("from_firework", "0")
+	body.Set("build", "0")
+	body.Set("mobi_app", "web")
+	body.Set("csrf", jct)
+	body.Set("csrf_token", jct)
+
+	// build http request
+	req, _ := http.NewRequest("POST", SEND_DM_API, strings.NewReader(body.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Cookie", fmt.Sprintf("SESSDATA=%s; bili_jct=%s", sess_data, jct))
+
+	// do http requst
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != 200 {
+		return nil, fmt.Errorf("http request failed: %d", rsp.StatusCode)
+	}
+
+	// read & decode response
+	data, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		logger().Printf("http read body failed: url: %s err: %v", SEND_MSG_API, err)
+		return nil, err
+	}
+
+	dm_rsp := &SendDirectMsgRsp{}
+	err = json.Unmarshal(data, dm_rsp)
+
+	return dm_rsp, err
+}
+
 func httpGet(base_url string, params map[string]string, rsp interface{}) error {
 	tmp := strings.Builder{}
 	tmp.WriteString(base_url)
