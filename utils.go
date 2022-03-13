@@ -1,12 +1,15 @@
 package BLiveDanmaku
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -162,14 +165,35 @@ func SendDirectMsg(sender, reciever int64, content, dev_id, sess_data, jct strin
 	tmp := map[string]string{"content": content}
 	content_data, _ := json.Marshal(tmp)
 
+	return SendDirectMsgRaw(sender, reciever, content_data, "1", dev_id, sess_data, jct)
+}
+
+func SendDirectMsgPicture(sender, reciever int64, pic *UploadedPic, image_type, dev_id, sess_data, jct string) (*SendDirectMsgRsp, error) {
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
+
+	// wrap content
+	tmp := map[string]interface{}{
+		"url":       pic.ImageURL,
+		"width":     pic.Width,
+		"height":    pic.Height,
+		"imageType": image_type,
+		"original":  1,
+		"size":      1,
+	}
+	content_data, _ := json.Marshal(tmp)
+
+	return SendDirectMsgRaw(sender, reciever, content_data, "2", dev_id, sess_data, jct)
+}
+
+func SendDirectMsgRaw(sender, reciever int64, content []byte, msg_type, dev_id, sess_data, jct string) (*SendDirectMsgRsp, error) {
 	// build body
 	body := url.Values{}
 	body.Set("msg[sender_uid]", fmt.Sprint(sender))
 	body.Set("msg[receiver_id]", fmt.Sprint(reciever))
 	body.Set("msg[receiver_type]", "1")
-	body.Set("msg[msg_type]", "1")
+	body.Set("msg[msg_type]", msg_type)
 	body.Set("msg[msg_status]", "0")
-	body.Set("msg[content]", string(content_data))
+	body.Set("msg[content]", string(content))
 	body.Set("msg[timestamp]", fmt.Sprint(time.Now().Unix()))
 	body.Set("msg[new_face_version]", "0")
 	body.Set("msg[dev_id]", dev_id)
@@ -206,6 +230,69 @@ func SendDirectMsg(sender, reciever int64, content, dev_id, sess_data, jct strin
 	err = json.Unmarshal(data, dm_rsp)
 
 	return dm_rsp, err
+}
+
+func UploadPic(pic_data []byte, pic_file, sess_data, jct string) (*UploadedPic, error) {
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
+
+	// build body
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, _ := writer.CreateFormFile("file_up", pic_file)
+	part.Write(pic_data)
+
+	add_field := func(writer *multipart.Writer, key, value string) {
+		part, _ := writer.CreateFormField(key)
+		part.Write([]byte(value))
+	}
+	add_field(writer, "biz", "im")
+	add_field(writer, "csrf", jct)
+	add_field(writer, "build", "0")
+	add_field(writer, "mobi_app", "web")
+
+	writer.Close()
+
+	// build http request
+	req, _ := http.NewRequest("POST", UPLOAD_PIC_API, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Cookie", fmt.Sprintf("SESSDATA=%s; bili_jct=%s", sess_data, jct))
+
+	// do http requst
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != 200 {
+		return nil, fmt.Errorf("http request failed: %d", rsp.StatusCode)
+	}
+
+	// read & decode response
+	data, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		logger().Printf("http read body failed: url: %s err: %v", UPLOAD_PIC_API, err)
+		return nil, err
+	}
+
+	dm_rsp := struct {
+		Code    int         `json:"code"`
+		Message string      `json:"message"`
+		TTL     int         `json:"ttl"`
+		Data    UploadedPic `json:"data"`
+	}{}
+
+	err = json.Unmarshal(data, &dm_rsp)
+	if err != nil {
+		return nil, err
+	}
+
+	if dm_rsp.Code != 0 {
+		return nil, fmt.Errorf("upload pic failed: [%d] %s", dm_rsp.Code, dm_rsp.Message)
+	}
+
+	return &dm_rsp.Data, err
 }
 
 func httpGet(base_url string, params map[string]string, rsp interface{}) error {

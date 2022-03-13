@@ -5,3 +5,5 @@ example/raw_message/raw_message*
 example/live_chat/live_chat*
 example/send_message/send_message*
 example/send_dm/send_dm*
+example/upload_pic/upload_pic*
+example/send_pic_dm/send_pic_dm*

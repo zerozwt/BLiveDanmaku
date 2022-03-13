@@ -23,6 +23,7 @@ const (
 	DANMAKU_INFO_API string = `https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo`
 	SEND_MSG_API     string = `https://api.live.bilibili.com/msg/send`
 	SEND_DM_API      string = `https://api.vc.bilibili.com/web_im/v1/web_im/send_msg`
+	UPLOAD_PIC_API   string = `https://api.bilibili.com/x/dynamic/feed/draw/upload_bfs`
 )
 
 var HEARTBEAT_MSG []byte = []byte(`[object Object]`)
