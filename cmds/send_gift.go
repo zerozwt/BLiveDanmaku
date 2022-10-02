@@ -12,7 +12,7 @@ type SendGift struct {
 		Action        string      `json:"action"`
 		BatchComboID  string      `json:"batch_combo_id"`
 		BatchComboNum int         `json:"batch_combo_num"`
-		BlindGift     interface{} `json:"blind_gift"`
+		BlindGift     *BlindGift  `json:"blind_gift"`
 		GiftID        int64       `json:"gift_id"`
 		GiftName      string      `json:"gift_name"`
 		GiftNum       int         `json:"gift_num"`
@@ -20,13 +20,13 @@ type SendGift struct {
 		UID           int64       `json:"uid"`
 		UserName      string      `json:"uname"`
 	} `json:"batch_combo_send"`
-	BeatID          string      `json:"beatId"`
-	BizSource       string      `json:"biz_source"`
-	BlindGift       interface{} `json:"blind_gift"`
-	BroadcastID     int64       `json:"broadcast_id"`
-	CoinType        string      `json:"coin_type"` // silver or gold
-	ComboResourceID int64       `json:"combo_resources_id"`
-	ComboSend       *struct {   // maybe nil
+	BeatID          string     `json:"beatId"`
+	BizSource       string     `json:"biz_source"`
+	BlindGift       *BlindGift `json:"blind_gift"`
+	BroadcastID     int64      `json:"broadcast_id"`
+	CoinType        string     `json:"coin_type"` // silver or gold
+	ComboResourceID int64      `json:"combo_resources_id"`
+	ComboSend       *struct {  // maybe nil
 		Action     string      `json:"action"`
 		ComboID    string      `json:"combo_id"`
 		ComboNum   int         `json:"combo_num"`
@@ -81,4 +81,12 @@ type SendGift struct {
 
 func (i *SendGift) Decode(data []byte) error {
 	return jsonDecode(data, i)
+}
+
+type BlindGift struct {
+	ConfigID         int    `json:"blind_gift_config_id"`
+	From             int    `json:"from"`
+	GiftAction       string `json:"gift_action"` // “爆出”
+	OriginalGiftID   int    `json:"original_gift_id"`
+	OriginalGiftName string `json:"original_gift_name"` // 白银宝盒
 }
