@@ -5,6 +5,7 @@ type RoomInfo struct {
 		Uid           int    `json:"uid"`
 		RoomID        int    `json:"room_id"`
 		Title         string `json:"title"`
+		Cover         string `json:"cover"`
 		LiveStatus    int    `json:"live_status"`
 		LiveStartTime int64  `json:"live_start_time"`
 	} `json:"room_info"`
