@@ -3,7 +3,7 @@ package BLiveDanmaku
 type RoomInfo struct {
 	Base struct {
 		Uid           int64  `json:"uid"`
-		RoomID        int    `json:"room_id"`
+		RoomID        int64  `json:"room_id"`
 		Title         string `json:"title"`
 		Cover         string `json:"cover"`
 		LiveStatus    int    `json:"live_status"`

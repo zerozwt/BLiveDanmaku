@@ -10,7 +10,7 @@ import (
 	dm "github.com/zerozwt/BLiveDanmaku"
 )
 
-var room_id int
+var room_id int64
 var log string
 
 func waitSignal(done chan bool) {
@@ -50,7 +50,7 @@ func onNetError(_ *dm.Client, err error) {
 }
 
 func main() {
-	flag.IntVar(&room_id, "room_id", 0, "room id of bilibili live room")
+	flag.Int64Var(&room_id, "room_id", 0, "room id of bilibili live room")
 	flag.StringVar(&log, "log", "", "[optional] log file")
 	flag.Parse()
 

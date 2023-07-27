@@ -9,12 +9,12 @@ import (
 
 func main() {
 	msg := ""
-	room_id := 0
+	room_id := int64(0)
 	sess_data := ""
 	jct := ""
 
 	flag.StringVar(&msg, "msg", "", "danmaku msg to send")
-	flag.IntVar(&room_id, "room_id", 0, "room id to send msg")
+	flag.Int64Var(&room_id, "room_id", 0, "room id to send msg")
 	flag.StringVar(&sess_data, "sess_data", "", "your SESS_DATA")
 	flag.StringVar(&jct, "jct", "", "your JCT")
 	flag.Parse()

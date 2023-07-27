@@ -13,7 +13,7 @@ import (
 	"github.com/zerozwt/BLiveDanmaku/cmds"
 )
 
-var room_id int
+var room_id int64
 
 func waitSignal(done chan bool) {
 	ch_sig := make(chan os.Signal, 1)
@@ -154,7 +154,7 @@ func onNetError(_ *dm.Client, err error) {
 }
 
 func main() {
-	flag.IntVar(&room_id, "room_id", 0, "room id of bilibili live room")
+	flag.Int64Var(&room_id, "room_id", 0, "room id of bilibili live room")
 	flag.Parse()
 
 	if room_id == 0 {

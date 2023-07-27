@@ -20,7 +20,7 @@ type CmdHandler func(*Client, string, []byte) bool
 type ErrHandler func(*Client, error)
 type ServerDisconnectHandler func(*Client, error)
 
-func Dial(bilibili_live_room_id int, conf *ClientConf) (*Client, error) {
+func Dial(bilibili_live_room_id int64, conf *ClientConf) (*Client, error) {
 	ret := &Client{}
 
 	conf = conf.Clone()
@@ -145,7 +145,7 @@ func (c *Client) SendMsg(msg *RawMessage) error {
 	return ErrNotConnected
 }
 
-func (c *Client) connect(bilibili_live_room_id int) error {
+func (c *Client) connect(bilibili_live_room_id int64) error {
 	// get room info
 	room_info, err := GetRoomInfo(bilibili_live_room_id)
 	if err != nil {

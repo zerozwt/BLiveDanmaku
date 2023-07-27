@@ -26,7 +26,7 @@ func init() {
 	SetLogWriter(NullWriter{})
 }
 
-func GetRoomInfo(room_id int) (*RoomInfo, error) {
+func GetRoomInfo(room_id int64) (*RoomInfo, error) {
 	room_info := &RoomInfo{}
 	info_rsp := struct {
 		Code    int       `json:"code"`
@@ -35,7 +35,7 @@ func GetRoomInfo(room_id int) (*RoomInfo, error) {
 	}{
 		Data: room_info,
 	}
-	err := httpGet(ROOM_INFO_API, map[string]string{"room_id": strconv.Itoa(room_id)}, &info_rsp)
+	err := httpGet(ROOM_INFO_API, map[string]string{"room_id": fmt.Sprint(room_id)}, &info_rsp)
 	if err != nil {
 		return nil, err
 	}
@@ -45,13 +45,13 @@ func GetRoomInfo(room_id int) (*RoomInfo, error) {
 	return room_info, nil
 }
 
-func GetDanmakuInfo(room_id int) (*DanmakuInfo, error) {
+func GetDanmakuInfo(room_id int64) (*DanmakuInfo, error) {
 	dm_rsp := struct {
 		Code    int         `json:"code"`
 		Message string      `json:"message"`
 		Data    DanmakuInfo `json:"data"`
 	}{}
-	err := httpGet(DANMAKU_INFO_API, map[string]string{"id": strconv.Itoa(room_id), "type": "0"}, &dm_rsp)
+	err := httpGet(DANMAKU_INFO_API, map[string]string{"id": fmt.Sprint(room_id), "type": "0"}, &dm_rsp)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func SendMsg(msg string, room *RoomInfo, sess_data, jct string) error {
 	body.Set("mode", "1")
 	body.Set("fontsize", "25")
 	body.Set("rnd", fmt.Sprint(time.Now().Unix()))
-	body.Set("roomid", strconv.Itoa(room.Base.RoomID))
+	body.Set("roomid", fmt.Sprint(room.Base.RoomID))
 	body.Set("csrf", jct)
 	body.Set("csrf_token", jct)
 	req, _ := http.NewRequest("POST", SEND_MSG_API, strings.NewReader(body.Encode()))
