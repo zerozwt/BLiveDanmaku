@@ -163,9 +163,11 @@ func (c *Client) connect(bilibili_live_room_id int64) error {
 	for _, host := range danmaku_info.HostList {
 		dailer := websocket.Dialer{HandshakeTimeout: c.conf.HandshakeTimeout}
 		ws_url := "wss://" + host.Host + ":" + strconv.Itoa(host.WssPort) + "/sub"
-		c.conn, _, err = dailer.Dial(ws_url, http.Header{})
+		c.conn, _, err = dailer.Dial(ws_url, http.Header{
+			"User-Agent": []string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"},
+		})
 		if err == nil {
-			go c.msgLoop(danmaku_info.Token)
+			go c.msgLoop(danmaku_info.Token, room_info.Base.Uid)
 			return nil
 		}
 		logger().Printf("connect danmaku websocket server %s:%d failed: %v, try next server ...", host.Host, host.WssPort, err)
@@ -174,14 +176,14 @@ func (c *Client) connect(bilibili_live_room_id int64) error {
 	return err
 }
 
-func (c *Client) msgLoop(token string) {
+func (c *Client) msgLoop(token string, uid int64) {
 	if atomic.LoadInt32(&(c.closed)) != 0 {
 		return
 	}
 
 	// auth
 	auth := map[string]interface{}{
-		"uid":      0,
+		"uid":      uid,
 		"roomid":   c.Room().Base.RoomID,
 		"protover": 3,
 		"platform": "web",

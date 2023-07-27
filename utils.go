@@ -84,6 +84,7 @@ func SendMsg(msg string, room *RoomInfo, sess_data, jct string) error {
 	req, _ := http.NewRequest("POST", SEND_MSG_API, strings.NewReader(body.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Cookie", fmt.Sprintf("SESSDATA=%s; bili_jct=%s", sess_data, jct))
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36")
 
 	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -207,6 +208,7 @@ func SendDirectMsgRaw(sender, reciever int64, content []byte, msg_type, dev_id, 
 	req, _ := http.NewRequest("POST", SEND_DM_API, strings.NewReader(body.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Cookie", fmt.Sprintf("SESSDATA=%s; bili_jct=%s", sess_data, jct))
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36")
 
 	// do http requst
 	rsp, err := http.DefaultClient.Do(req)
@@ -257,6 +259,7 @@ func UploadPic(pic_data []byte, pic_file, sess_data, jct string) (*UploadedPic, 
 	req, _ := http.NewRequest("POST", UPLOAD_PIC_API, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Cookie", fmt.Sprintf("SESSDATA=%s; bili_jct=%s", sess_data, jct))
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36")
 
 	// do http requst
 	rsp, err := http.DefaultClient.Do(req)
@@ -312,7 +315,13 @@ func httpGet(base_url string, params map[string]string, rsp interface{}) error {
 	}
 	real_url := tmp.String()
 
-	http_rsp, err := http.Get(real_url)
+	http_req, err := http.NewRequest("GET", real_url, nil)
+	if err != nil {
+		return err
+	}
+	http_req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36")
+
+	http_rsp, err := http.DefaultClient.Do(http_req)
 	if err != nil {
 		logger().Printf("http get %s failed: %v", real_url, err)
 		return err
