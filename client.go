@@ -164,7 +164,7 @@ func (c *Client) connect(bilibili_live_room_id int64) error {
 		dailer := websocket.Dialer{HandshakeTimeout: c.conf.HandshakeTimeout}
 		ws_url := "wss://" + host.Host + ":" + strconv.Itoa(host.WssPort) + "/sub"
 		c.conn, _, err = dailer.Dial(ws_url, http.Header{
-			"User-Agent": []string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"},
+			"User-Agent": []string{USER_AGENT},
 		})
 		if err == nil {
 			go c.msgLoop(danmaku_info.Token, room_info.Base.Uid)

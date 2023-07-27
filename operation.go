@@ -24,6 +24,8 @@ const (
 	SEND_MSG_API     string = `https://api.live.bilibili.com/msg/send`
 	SEND_DM_API      string = `https://api.vc.bilibili.com/web_im/v1/web_im/send_msg`
 	UPLOAD_PIC_API   string = `https://api.bilibili.com/x/dynamic/feed/draw/upload_bfs`
+
+	USER_AGENT string = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36`
 )
 
 var HEARTBEAT_MSG []byte = []byte(`[object Object]`)
